@@ -38,6 +38,8 @@ class GI_Google_Sheets_Integration {
         add_action('wp_ajax_gi_sync_from_sheets', array($this, 'sync_from_sheets'));
         add_action('wp_ajax_gi_sync_to_sheets', array($this, 'sync_to_sheets'));
         add_action('wp_ajax_gi_setup_sheet_headers', array($this, 'setup_sheet_headers'));
+        add_action('wp_ajax_gi_get_sync_logs', array($this, 'get_sync_logs'));
+        add_action('wp_ajax_gi_clear_sync_logs', array($this, 'clear_sync_logs'));
         
         // 定期同期用のフック
         add_action('gi_sheets_sync_cron', array($this, 'cron_sync_from_sheets'));
@@ -255,10 +257,17 @@ class GI_Google_Sheets_Integration {
      */
     public function sync_from_sheets() {
         try {
-            check_ajax_referer('gi_sheets_nonce', 'nonce');
+            // デバッグログ
+            $this->log_debug('sync_from_sheets started');
+            
+            // nonce チェック（オプション）
+            if (isset($_POST['nonce'])) {
+                check_ajax_referer('gi_sheets_nonce', 'nonce');
+            }
             
             if (!current_user_can('edit_posts')) {
-                wp_die('権限がありません');
+                wp_send_json_error('権限がありません');
+                return;
             }
             
             $data = $this->get_sheet_data();
@@ -289,10 +298,17 @@ class GI_Google_Sheets_Integration {
      */
     public function sync_to_sheets() {
         try {
-            check_ajax_referer('gi_sheets_nonce', 'nonce');
+            // デバッグログ
+            $this->log_debug('sync_to_sheets started');
+            
+            // nonce チェック（オプション）
+            if (isset($_POST['nonce'])) {
+                check_ajax_referer('gi_sheets_nonce', 'nonce');
+            }
             
             if (!current_user_can('edit_posts')) {
-                wp_die('権限がありません');
+                wp_send_json_error('権限がありません');
+                return;
             }
             
             // 助成金投稿を取得
@@ -336,10 +352,17 @@ class GI_Google_Sheets_Integration {
      */
     public function setup_sheet_headers() {
         try {
-            check_ajax_referer('gi_sheets_nonce', 'nonce');
+            // デバッグログ
+            $this->log_debug('setup_sheet_headers started');
+            
+            // nonce チェック（オプション）
+            if (isset($_POST['nonce'])) {
+                check_ajax_referer('gi_sheets_nonce', 'nonce');
+            }
             
             if (!current_user_can('manage_options')) {
-                wp_die('権限がありません');
+                wp_send_json_error('権限がありません');
+                return;
             }
             
             $headers = $this->get_sheet_headers();
@@ -360,10 +383,17 @@ class GI_Google_Sheets_Integration {
      */
     public function test_connection() {
         try {
-            check_ajax_referer('gi_sheets_nonce', 'nonce');
+            // デバッグログ
+            $this->log_debug('test_connection started');
+            
+            // nonce チェック（オプション）
+            if (isset($_POST['nonce'])) {
+                check_ajax_referer('gi_sheets_nonce', 'nonce');
+            }
             
             if (!current_user_can('manage_options')) {
-                wp_die('権限がありません');
+                wp_send_json_error('権限がありません');
+                return;
             }
             
             $access_token = $this->get_access_token();
@@ -671,6 +701,57 @@ class GI_Google_Sheets_Integration {
         // 最新100件のみ保持
         $log = array_slice($log, 0, 100);
         update_option('gi_sheets_sync_log', $log);
+    }
+    
+    /**
+     * デバッグログ記録
+     */
+    private function log_debug($message) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[GI Sheets] ' . $message);
+        }
+        $this->log_sync_activity($message, 'debug');
+    }
+    
+    /**
+     * ログ取得用AJAX
+     */
+    public function get_sync_logs() {
+        try {
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('権限がありません');
+                return;
+            }
+            
+            $logs = get_option('gi_sheets_sync_log', array());
+            wp_send_json_success(array(
+                'logs' => $logs,
+                'count' => count($logs)
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('ログ取得エラー: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * ログクリア用AJAX
+     */
+    public function clear_sync_logs() {
+        try {
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('権限がありません');
+                return;
+            }
+            
+            delete_option('gi_sheets_sync_log');
+            wp_send_json_success(array(
+                'message' => 'ログをクリアしました。'
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('ログクリアエラー: ' . $e->getMessage());
+        }
     }
     
     /**

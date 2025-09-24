@@ -1652,7 +1652,7 @@ function gi_sheets_integration_page() {
                         <?php if (empty($sync_log)): ?>
                             <p>同期ログはまだありません。</p>
                         <?php else: ?>
-                            <table class="widefat striped">
+                            <table class="widefat striped" id="logs-table">
                                 <thead>
                                     <tr>
                                         <th>時刻</th>
@@ -1807,8 +1807,7 @@ function gi_sheets_integration_page() {
                 url: ajaxurl,
                 type: 'POST',
                 data: {
-                    action: 'gi_test_sheets_connection',
-                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                    action: 'gi_test_sheets_connection'
                 },
                 success: function(response) {
                     showStatus(response.success ? 'success' : 'error', 
@@ -1832,8 +1831,7 @@ function gi_sheets_integration_page() {
                 url: ajaxurl,
                 type: 'POST',
                 data: {
-                    action: 'gi_setup_sheet_headers',
-                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                    action: 'gi_setup_sheet_headers'
                 },
                 success: function(response) {
                     showStatus(response.success ? 'success' : 'error', 
@@ -1878,8 +1876,7 @@ function gi_sheets_integration_page() {
                 url: ajaxurl,
                 type: 'POST',
                 data: {
-                    action: action,
-                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                    action: action
                 },
                 success: function(response) {
                     $('.gi-progress-fill').css('width', '100%');
@@ -1907,13 +1904,66 @@ function gi_sheets_integration_page() {
             });
         }
         
+        // ログ更新
+        function updateLogs() {
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gi_get_sync_logs'
+                },
+                success: function(response) {
+                    if (response.success && response.data.logs) {
+                        updateLogTable(response.data.logs);
+                    }
+                },
+                error: function() {
+                    console.log('ログ取得エラー');
+                }
+            });
+        }
+        
+        // ログテーブル更新
+        function updateLogTable(logs) {
+            var $tbody = $('#logs-table tbody');
+            if (logs.length === 0) {
+                $tbody.html('<tr><td colspan="3">ログはありません。</td></tr>');
+                return;
+            }
+            
+            var html = '';
+            logs.slice(0, 20).forEach(function(entry) {
+                html += '<tr>' +
+                    '<td>' + entry.timestamp + '</td>' +
+                    '<td><span class="log-level log-' + entry.level + '">' + entry.level.toUpperCase() + '</span></td>' +
+                    '<td>' + entry.message + '</td>' +
+                    '</tr>';
+            });
+            $tbody.html(html);
+        }
+        
         // ログクリア
         $('#clear-logs').on('click', function() {
             if (confirm('同期ログをすべて削除しますか？')) {
-                // ログクリア処理を実装
-                location.reload();
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'gi_clear_sync_logs'
+                    },
+                    success: function(response) {
+                        updateLogs();
+                        showStatus('success', 'ログをクリアしました。');
+                    }
+                });
             }
         });
+        
+        // ログ自動更新
+        if ($('#logs').length) {
+            updateLogs();
+            setInterval(updateLogs, 30000); // 30秒ごと
+        }
         
         // ステータス表示関数
         function showStatus(type, message) {
