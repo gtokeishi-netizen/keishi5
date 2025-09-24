@@ -1583,9 +1583,6 @@ function gi_sheets_integration_page() {
                         <button type="button" id="debug-test" class="button button-secondary" style="background-color: #ff9800; border-color: #ff9800; color: white;">
                             🔧 デバッグテスト
                         </button>
-                        <button type="button" id="simple-test" class="button button-secondary" style="background-color: #4caf50; border-color: #4caf50; color: white;">
-                            ⚡ シンプルテスト
-                        </button>
                     </div>
                 </form>
             </div>
@@ -2024,6 +2021,7 @@ function gi_sheets_integration_page() {
             });
         });
         
+        /*
         // シンプルテスト
         $('#simple-test').on('click', function() {
             var $btn = $(this);
@@ -2052,6 +2050,7 @@ function gi_sheets_integration_page() {
                 }
             });
         });
+        */
         
         // ステータス表示関数
         function showStatus(type, message) {
@@ -2101,6 +2100,7 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
  * =============================================================================
  */
 
+/*
 // シンプルなAJAXテストハンドラー（バックアップ）
 add_action('wp_ajax_gi_simple_test', function() {
     wp_send_json_success(array(
@@ -2116,3 +2116,4 @@ if (!has_action('wp_ajax_gi_test_sheets_connection')) {
         wp_send_json_error('Google Sheets Integration クラスが読み込まれていません。functions.phpでの読み込みを確認してください。');
     });
 }
+*/

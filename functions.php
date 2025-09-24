@@ -39,7 +39,7 @@ $required_files = array(
     'fields-configuration.php', // ACF設定とフィールド定義統合（旧：acf-setup.php）
     'external-importer.php',    // Jグランツ・インポーター機能（旧：grant-insight-jgrants-importer.php）
     'excel-import-export.php',  // Excel インポート・エクスポート機能（新規追加）
-    'google-sheets-integration.php' // Google Sheets連携機能（新規追加）
+    // 'google-sheets-integration.php' // Google Sheets連携機能（新規追加）- 一時的にコメントアウト
 );
 
 // 各ファイルを安全に読み込み
