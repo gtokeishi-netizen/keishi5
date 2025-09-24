@@ -27,7 +27,7 @@ if (!defined('GI_THEME_PREFIX')) {
 // 機能ファイルの読み込み
 $inc_dir = get_template_directory() . '/inc/';
 
-// 整理されたファイル構成（10ファイル → 9ファイル、Enhanced AI Generator追加）
+// 整理されたファイル構成（10ファイル → 11ファイル、Google Sheets Integration追加）
 $required_files = array(
     'theme-foundation.php',     // テーマ設定、投稿タイプ、タクソノミー統合（旧：core-setup.php）
     'card-rendering.php',       // カードレンダリング、テンプレート、モバイル最適化統合（旧：display-functions.php）
@@ -38,7 +38,8 @@ $required_files = array(
     'admin-customization.php',  // 管理画面機能（旧：6-admin-functions.php）
     'fields-configuration.php', // ACF設定とフィールド定義統合（旧：acf-setup.php）
     'external-importer.php',    // Jグランツ・インポーター機能（旧：grant-insight-jgrants-importer.php）
-    'excel-import-export.php'   // Excel インポート・エクスポート機能（新規追加）
+    'excel-import-export.php',  // Excel インポート・エクスポート機能（新規追加）
+    'google-sheets-integration.php' // Google Sheets連携機能（新規追加）
 );
 
 // 各ファイルを安全に読み込み
@@ -83,7 +84,7 @@ if (!function_exists('gi_render_card')) {
  */
 function gi_final_init() {  // ✅ 修正
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('Grant Insight Theme v' . GI_THEME_VERSION . ': File cleanup completed, 8 organized files loaded successfully');
+        error_log('Grant Insight Theme v' . GI_THEME_VERSION . ': File cleanup completed, 11 organized files loaded successfully');
     }
 }
 add_action('wp_loaded', 'gi_final_init', 999);

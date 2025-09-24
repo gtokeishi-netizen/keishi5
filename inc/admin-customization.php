@@ -439,6 +439,17 @@ function gi_add_prefecture_debug_menu() {
         'dashicons-table-col-after',
         25
     );
+    
+    // Google スプレッドシート連携メニュー
+    add_menu_page(
+        'スプレッドシート連携',
+        'Sheets連携',
+        'read',
+        'gi-sheets-integration',
+        'gi_sheets_integration_page',
+        'dashicons-google',
+        26
+    );
 }
 add_action('admin_menu', 'gi_add_prefecture_debug_menu');
 
@@ -1445,7 +1456,493 @@ function gi_get_excel_grant_statistics() {
 
 /**
  * =============================================================================
- * 10. デバッグ・ログ出力
+ * 10. Google スプレッドシート連携管理画面
+ * =============================================================================
+ */
+
+/**
+ * Google スプレッドシート連携設定ページ
+ */
+function gi_sheets_integration_page() {
+    // 設定の保存処理
+    if (isset($_POST['save_sheets_settings'])) {
+        if (wp_verify_nonce($_POST['sheets_nonce'], 'gi_sheets_settings')) {
+            update_option('gi_google_service_account_key', sanitize_textarea_field($_POST['service_account_key']));
+            update_option('gi_google_spreadsheet_id', sanitize_text_field($_POST['spreadsheet_id']));
+            update_option('gi_google_sheet_name', sanitize_text_field($_POST['sheet_name']));
+            update_option('gi_sheets_auto_sync', isset($_POST['auto_sync']) ? 1 : 0);
+            update_option('gi_sheets_sync_interval', intval($_POST['sync_interval']));
+            
+            echo '<div class="notice notice-success"><p>設定を保存しました。</p></div>';
+            
+            // クーロンスケジュールの更新
+            wp_clear_scheduled_hook('gi_sheets_sync_cron');
+            if (get_option('gi_sheets_auto_sync')) {
+                wp_schedule_event(time(), 'gi_sheets_sync_interval', 'gi_sheets_sync_cron');
+            }
+        }
+    }
+    
+    // 現在の設定値を取得
+    $service_account_key = get_option('gi_google_service_account_key', '');
+    $spreadsheet_id = get_option('gi_google_spreadsheet_id', '');
+    $sheet_name = get_option('gi_google_sheet_name', 'Sheet1');
+    $auto_sync = get_option('gi_sheets_auto_sync', false);
+    $sync_interval = get_option('gi_sheets_sync_interval', 3600);
+    
+    // 同期ログを取得
+    $sync_log = get_option('gi_sheets_sync_log', array());
+    
+    ?>
+    <div class="wrap">
+        <h1>🔗 Google スプレッドシート連携</h1>
+        <p>WordPressの助成金投稿とGoogle スプレッドシートを双方向同期できます。</p>
+        
+        <div id="sheets-status" class="notice" style="display:none;"></div>
+        
+        <div class="gi-admin-tabs">
+            <nav class="nav-tab-wrapper">
+                <a href="#settings" class="nav-tab nav-tab-active">⚙️ 設定</a>
+                <a href="#sync" class="nav-tab">🔄 同期</a>
+                <a href="#logs" class="nav-tab">📋 ログ</a>
+                <a href="#help" class="nav-tab">❓ ヘルプ</a>
+            </nav>
+            
+            <!-- 設定タブ -->
+            <div id="settings" class="tab-content">
+                <form method="post" action="">
+                    <?php wp_nonce_field('gi_sheets_settings', 'sheets_nonce'); ?>
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Google サービスアカウントキー</th>
+                            <td>
+                                <textarea name="service_account_key" rows="8" cols="80" class="large-text code"
+                                          placeholder='{"type": "service_account", "project_id": "your-project", ...}'><?php echo esc_textarea($service_account_key); ?></textarea>
+                                <p class="description">
+                                    Google Cloud Console で作成したサービスアカウントのJSONキーを貼り付けてください。<br>
+                                    <a href="#help" onclick="switchTab('help')">詳細な設定方法はヘルプタブを参照</a>
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">スプレッドシートID</th>
+                            <td>
+                                <input type="text" name="spreadsheet_id" value="<?php echo esc_attr($spreadsheet_id); ?>" 
+                                       class="regular-text" placeholder="1234567890abcdef...">
+                                <p class="description">
+                                    Google スプレッドシートのURLから取得したIDを入力してください。<br>
+                                    例: https://docs.google.com/spreadsheets/d/<strong>スプレッドシートID</strong>/edit
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">シート名</th>
+                            <td>
+                                <input type="text" name="sheet_name" value="<?php echo esc_attr($sheet_name); ?>" 
+                                       class="regular-text" placeholder="Sheet1">
+                                <p class="description">同期対象のシート名を入力してください（デフォルト: Sheet1）</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">自動同期設定</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="auto_sync" value="1" <?php checked($auto_sync); ?>>
+                                    自動同期を有効にする
+                                </label>
+                                <p class="description">スプレッドシートの変更を定期的に取り込みます。</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">同期間隔</th>
+                            <td>
+                                <select name="sync_interval">
+                                    <option value="300" <?php selected($sync_interval, 300); ?>>5分</option>
+                                    <option value="900" <?php selected($sync_interval, 900); ?>>15分</option>
+                                    <option value="1800" <?php selected($sync_interval, 1800); ?>>30分</option>
+                                    <option value="3600" <?php selected($sync_interval, 3600); ?>>1時間</option>
+                                    <option value="7200" <?php selected($sync_interval, 7200); ?>>2時間</option>
+                                    <option value="21600" <?php selected($sync_interval, 21600); ?>>6時間</option>
+                                </select>
+                                <p class="description">自動同期の実行間隔を選択してください。</p>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <div class="gi-button-group">
+                        <button type="submit" name="save_sheets_settings" class="button button-primary">
+                            💾 設定を保存
+                        </button>
+                        <button type="button" id="test-connection" class="button button-secondary">
+                            🔍 接続テスト
+                        </button>
+                        <button type="button" id="setup-headers" class="button button-secondary">
+                            📋 ヘッダー設定
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 同期タブ -->
+            <div id="sync" class="tab-content" style="display:none;">
+                <div class="gi-sync-controls">
+                    <div class="postbox">
+                        <h3 class="hndle">🔄 手動同期</h3>
+                        <div class="inside">
+                            <p>スプレッドシートとWordPressを手動で同期できます。</p>
+                            
+                            <div class="gi-sync-buttons">
+                                <button type="button" id="sync-from-sheets" class="button button-primary">
+                                    📥 スプレッドシート → WordPress
+                                </button>
+                                <button type="button" id="sync-to-sheets" class="button button-secondary">
+                                    📤 WordPress → スプレッドシート
+                                </button>
+                            </div>
+                            
+                            <div id="sync-progress" class="gi-progress-container" style="display:none;">
+                                <div class="gi-progress-bar">
+                                    <div class="gi-progress-fill" style="width: 0%;"></div>
+                                </div>
+                                <p id="sync-status">同期中...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="postbox">
+                        <h3 class="hndle">📊 同期状況</h3>
+                        <div class="inside">
+                            <table class="widefat">
+                                <tr>
+                                    <td>最後の同期</td>
+                                    <td id="last-sync-time">
+                                        <?php 
+                                        $last_sync = get_option('gi_sheets_last_sync');
+                                        echo $last_sync ? date('Y-m-d H:i:s', $last_sync) : '未実行';
+                                        ?>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>自動同期ステータス</td>
+                                    <td>
+                                        <?php echo $auto_sync ? '✅ 有効' : '❌ 無効'; ?>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>次回自動同期</td>
+                                    <td>
+                                        <?php 
+                                        $next_sync = wp_next_scheduled('gi_sheets_sync_cron');
+                                        echo $next_sync ? date('Y-m-d H:i:s', $next_sync) : '予定なし';
+                                        ?>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ログタブ -->
+            <div id="logs" class="tab-content" style="display:none;">
+                <div class="postbox">
+                    <h3 class="hndle">📋 同期ログ</h3>
+                    <div class="inside">
+                        <?php if (empty($sync_log)): ?>
+                            <p>同期ログはまだありません。</p>
+                        <?php else: ?>
+                            <table class="widefat striped">
+                                <thead>
+                                    <tr>
+                                        <th>時刻</th>
+                                        <th>レベル</th>
+                                        <th>メッセージ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach (array_slice($sync_log, 0, 20) as $entry): ?>
+                                        <tr>
+                                            <td><?php echo esc_html($entry['timestamp']); ?></td>
+                                            <td>
+                                                <span class="log-level log-<?php echo esc_attr($entry['level']); ?>">
+                                                    <?php echo esc_html(strtoupper($entry['level'])); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo esc_html($entry['message']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                        
+                        <p>
+                            <button type="button" id="clear-logs" class="button button-secondary">
+                                🗑️ ログをクリア
+                            </button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ヘルプタブ -->
+            <div id="help" class="tab-content" style="display:none;">
+                <div class="postbox">
+                    <h3 class="hndle">📚 設定ガイド</h3>
+                    <div class="inside">
+                        <h4>1. Google Cloud Console でサービスアカウントを作成</h4>
+                        <ol>
+                            <li>Google Cloud Console（console.cloud.google.com）にアクセス</li>
+                            <li>新しいプロジェクトを作成、または既存のプロジェクトを選択</li>
+                            <li>「API とサービス」→「ライブラリ」で「Google Sheets API」を有効化</li>
+                            <li>「API とサービス」→「認証情報」→「認証情報を作成」→「サービスアカウント」</li>
+                            <li>サービスアカウント名を入力して作成</li>
+                            <li>作成したサービスアカウントをクリック→「キー」タブ→「キーを追加」→「JSON」</li>
+                            <li>ダウンロードしたJSONファイルの内容を上記の設定フィールドに貼り付け</li>
+                        </ol>
+                        
+                        <h4>2. Google スプレッドシートの準備</h4>
+                        <ol>
+                            <li>Google スプレッドシートを新規作成</li>
+                            <li>スプレッドシートをサービスアカウントと共有：
+                                <ul>
+                                    <li>「共有」ボタンをクリック</li>
+                                    <li>サービスアカウントのメールアドレス（JSON内のclient_email）を追加</li>
+                                    <li>権限を「編集者」に設定</li>
+                                </ul>
+                            </li>
+                            <li>スプレッドシートのURLからIDをコピー</li>
+                        </ol>
+                        
+                        <h4>3. 同期の仕組み</h4>
+                        <ul>
+                            <li><strong>スプレッドシート → WordPress</strong>: スプレッドシートの内容でWordPress投稿を作成・更新</li>
+                            <li><strong>WordPress → スプレッドシート</strong>: WordPress投稿をスプレッドシートに出力</li>
+                            <li><strong>自動同期</strong>: 指定した間隔でスプレッドシートから自動取り込み</li>
+                            <li><strong>投稿保存時同期</strong>: WordPress投稿保存時にスプレッドシートを自動更新</li>
+                        </ul>
+                        
+                        <h4>4. スプレッドシートの列構成</h4>
+                        <p>「ヘッダー設定」ボタンをクリックすると、以下の列が自動で設定されます：</p>
+                        <div class="gi-column-list">
+                            <code>ID, タイトル, ステータス, 実施組織, 組織タイプ, 最大金額（万円）, 最小金額（万円）, 最大助成額（数値・円単位）, 補助率（%）, 金額備考, 申請期限, 募集開始日, 締切日, 締切に関する備考, 申請ステータス, 対象都道府県, 対象市町村, 地域制限, 地域に関する備考, カテゴリー, タグ, 助成金対象, 対象経費, 難易度, 成功率（%）, 対象者・応募要件, 申請手順, 申請方法, 必要書類, 連絡先情報, 公式URL, 概要, 本文, 注目の助成金, 作成日, 更新日, 最終更新者</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .gi-admin-tabs .nav-tab-wrapper {
+            border-bottom: 1px solid #ccd0d4;
+            margin-bottom: 20px;
+        }
+        .gi-admin-tabs .tab-content {
+            background: white;
+            border: 1px solid #c3c4c7;
+            border-radius: 0 3px 3px 3px;
+            padding: 20px;
+        }
+        .gi-button-group {
+            margin-top: 20px;
+        }
+        .gi-button-group .button {
+            margin-right: 10px;
+        }
+        .gi-sync-buttons {
+            margin: 15px 0;
+        }
+        .gi-sync-buttons .button {
+            margin-right: 15px;
+            padding: 8px 20px;
+            height: auto;
+        }
+        .gi-progress-container {
+            margin: 20px 0;
+        }
+        .log-level {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .log-level.log-info {
+            background: #e7f3ff;
+            color: #2271b1;
+        }
+        .log-level.log-error {
+            background: #fcf0f1;
+            color: #d63638;
+        }
+        .log-level.log-warning {
+            background: #fff8e5;
+            color: #b32d2e;
+        }
+        .gi-column-list code {
+            display: block;
+            white-space: pre-wrap;
+            background: #f0f0f1;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+    </style>
+    
+    <script>
+    jQuery(document).ready(function($) {
+        // タブ切り替え
+        $('.nav-tab').on('click', function(e) {
+            e.preventDefault();
+            var target = $(this).attr('href');
+            switchTab(target.substring(1));
+        });
+        
+        // 接続テスト
+        $('#test-connection').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('🔍 テスト中...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gi_test_sheets_connection',
+                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                },
+                success: function(response) {
+                    showStatus(response.success ? 'success' : 'error', 
+                              response.data.message);
+                },
+                error: function() {
+                    showStatus('error', '接続テストでエラーが発生しました。');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('🔍 接続テスト');
+                }
+            });
+        });
+        
+        // ヘッダー設定
+        $('#setup-headers').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('📋 設定中...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gi_setup_sheet_headers',
+                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                },
+                success: function(response) {
+                    showStatus(response.success ? 'success' : 'error', 
+                              response.data.message);
+                },
+                error: function() {
+                    showStatus('error', 'ヘッダー設定でエラーが発生しました。');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('📋 ヘッダー設定');
+                }
+            });
+        });
+        
+        // スプレッドシートから同期
+        $('#sync-from-sheets').on('click', function() {
+            if (!confirm('スプレッドシートからWordPressに同期しますか？\\n既存の投稿が更新される可能性があります。')) {
+                return;
+            }
+            
+            performSync('gi_sync_from_sheets', '📥 スプレッドシートから同期中...');
+        });
+        
+        // WordPressから同期
+        $('#sync-to-sheets').on('click', function() {
+            if (!confirm('WordPressからスプレッドシートに同期しますか？\\nスプレッドシートの内容が上書きされます。')) {
+                return;
+            }
+            
+            performSync('gi_sync_to_sheets', '📤 スプレッドシートに同期中...');
+        });
+        
+        // 同期実行関数
+        function performSync(action, statusText) {
+            $('#sync-progress').show();
+            $('#sync-status').text(statusText);
+            $('.gi-progress-fill').css('width', '50%');
+            
+            $('.gi-sync-buttons .button').prop('disabled', true);
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: action,
+                    nonce: '<?php echo wp_create_nonce('gi_sheets_nonce'); ?>'
+                },
+                success: function(response) {
+                    $('.gi-progress-fill').css('width', '100%');
+                    $('#sync-status').text(response.data.message);
+                    
+                    showStatus(response.success ? 'success' : 'error', 
+                              response.data.message);
+                              
+                    if (response.success) {
+                        // 同期時刻を更新
+                        $('#last-sync-time').text(new Date().toLocaleString('ja-JP'));
+                    }
+                },
+                error: function() {
+                    showStatus('error', '同期中にエラーが発生しました。');
+                    $('#sync-status').text('同期エラー');
+                },
+                complete: function() {
+                    setTimeout(function() {
+                        $('#sync-progress').hide();
+                        $('.gi-progress-fill').css('width', '0%');
+                        $('.gi-sync-buttons .button').prop('disabled', false);
+                    }, 2000);
+                }
+            });
+        }
+        
+        // ログクリア
+        $('#clear-logs').on('click', function() {
+            if (confirm('同期ログをすべて削除しますか？')) {
+                // ログクリア処理を実装
+                location.reload();
+            }
+        });
+        
+        // ステータス表示関数
+        function showStatus(type, message) {
+            var $status = $('#sheets-status');
+            $status.removeClass('notice-success notice-error notice-warning')
+                   .addClass('notice-' + (type === 'success' ? 'success' : 'error'))
+                   .html('<p>' + message + '</p>')
+                   .show();
+            
+            setTimeout(function() {
+                $status.fadeOut();
+            }, 5000);
+        }
+    });
+    
+    // タブ切り替え関数
+    function switchTab(tabName) {
+        $('.nav-tab').removeClass('nav-tab-active');
+        $('.tab-content').hide();
+        $('a[href="#' + tabName + '"]').addClass('nav-tab-active');
+        $('#' + tabName).show();
+    }
+    </script>
+    <?php
+}
+
+/**
+ * =============================================================================
+ * 11. デバッグ・ログ出力
  * =============================================================================
  */
 
