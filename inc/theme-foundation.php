@@ -375,6 +375,36 @@ function gi_register_taxonomies() {
             'with_front' => false
         )
     ));
+    
+    // 市町村タクソノミー
+    register_taxonomy('grant_municipality', 'grant', array(
+        'labels' => array(
+            'name' => '対象市町村',
+            'singular_name' => '市町村',
+            'search_items' => '市町村を検索',
+            'all_items' => 'すべての市町村',
+            'edit_item' => '市町村を編集',
+            'update_item' => '市町村を更新',
+            'add_new_item' => '新しい市町村を追加',
+            'new_item_name' => '新しい市町村名'
+        ),
+        'description' => '助成金・補助金の対象市町村を管理します',
+        'public' => true,
+        'publicly_queryable' => true,
+        'hierarchical' => true, // 都道府県 > 市町村の階層構造対応
+        'show_ui' => true,
+        'show_in_menu' => true,
+        'show_in_nav_menus' => true,
+        'show_in_rest' => true,
+        'show_tagcloud' => true,
+        'show_admin_column' => true,
+        'query_var' => true,
+        'rewrite' => array(
+            'slug' => 'grant-municipality',
+            'with_front' => false,
+            'hierarchical' => true
+        )
+    ));
 }
 add_action('init', 'gi_register_taxonomies');
 

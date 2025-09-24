@@ -105,6 +105,9 @@ function gi_get_excel_headers() {
         '締切に関する備考',
         '申請ステータス',
         '対象都道府県',
+        '対象市町村',
+        '地域制限',
+        '地域に関する備考',
         'カテゴリー',
         'タグ',
         '助成金対象',
@@ -150,6 +153,9 @@ function gi_prepare_grant_row_data($grant) {
     $deadline_date = gi_safe_get_meta($post_id, 'deadline_date', '');
     $deadline_note = gi_safe_get_meta($post_id, 'deadline_note', '');
     $application_status = gi_safe_get_meta($post_id, 'application_status', '');
+    $target_municipality = gi_safe_get_meta($post_id, 'target_municipality', '');
+    $regional_limitation = gi_safe_get_meta($post_id, 'regional_limitation', '');
+    $regional_note = gi_safe_get_meta($post_id, 'regional_note', '');
     $grant_target = gi_safe_get_meta($post_id, 'grant_target', '');
     $eligible_expenses = gi_safe_get_meta($post_id, 'eligible_expenses', '');
     $grant_difficulty = gi_safe_get_meta($post_id, 'grant_difficulty', '');
@@ -172,6 +178,16 @@ function gi_prepare_grant_row_data($grant) {
             $prefecture_names[] = $term->name;
         }
         $prefecture = implode('、', $prefecture_names);
+    }
+    
+    $municipality_terms = get_the_terms($post_id, 'grant_municipality');
+    $municipality = '';
+    if ($municipality_terms && !is_wp_error($municipality_terms)) {
+        $municipality_names = array();
+        foreach ($municipality_terms as $term) {
+            $municipality_names[] = $term->name;
+        }
+        $municipality = implode('、', $municipality_names);
     }
     
     $category_terms = get_the_terms($post_id, 'grant_category');
@@ -216,6 +232,8 @@ function gi_prepare_grant_row_data($grant) {
     $application_steps = str_replace(array("\r\n", "\n", "\r"), ' ', $application_steps);
     $required_documents = str_replace(array("\r\n", "\n", "\r"), ' ', $required_documents);
     $summary = str_replace(array("\r\n", "\n", "\r"), ' ', $summary);
+    $target_municipality = str_replace(array("\r\n", "\n", "\r"), ' ', $target_municipality);
+    $regional_note = str_replace(array("\r\n", "\n", "\r"), ' ', $regional_note);
     
     return array(
         $post_id,
@@ -234,6 +252,9 @@ function gi_prepare_grant_row_data($grant) {
         $deadline_note,
         $application_status,
         $prefecture,
+        $target_municipality,
+        $regional_limitation,
+        $regional_note,
         $category,
         $tags,
         $grant_target,
@@ -422,6 +443,9 @@ function gi_update_import_custom_fields($post_id, $row_data) {
         'deadline_date' => '締切日',
         'deadline_note' => '締切に関する備考',
         'application_status' => '申請ステータス',
+        'target_municipality' => '対象市町村',
+        'regional_limitation' => '地域制限',
+        'regional_note' => '地域に関する備考',
         'grant_target' => '助成金対象',
         'eligible_expenses' => '対象経費',
         'grant_difficulty' => '難易度',
@@ -441,7 +465,8 @@ function gi_update_import_custom_fields($post_id, $row_data) {
         'organization_type' => array('national', 'prefecture', 'city', 'public_org', 'private_org', 'other'),
         'application_status' => array('open', 'upcoming', 'closed', 'suspended'),
         'grant_difficulty' => array('easy', 'normal', 'hard', 'expert'),
-        'application_method' => array('online', 'mail', 'visit', 'mixed')
+        'application_method' => array('online', 'mail', 'visit', 'mixed'),
+        'regional_limitation' => array('nationwide', 'prefecture_only', 'municipality_only', 'region_group', 'specific_area')
     );
     
     foreach ($field_mappings as $field_key => $excel_header) {
@@ -458,7 +483,8 @@ function gi_update_import_custom_fields($post_id, $row_data) {
                         'organization_type' => 'other',
                         'application_status' => 'open',
                         'grant_difficulty' => 'normal',
-                        'application_method' => 'online'
+                        'application_method' => 'online',
+                        'regional_limitation' => 'nationwide'
                     );
                     $value = $defaults[$field_key] ?? '';
                 }
@@ -513,6 +539,31 @@ function gi_update_import_taxonomies($post_id, $row_data) {
         
         if (!empty($prefecture_ids)) {
             wp_set_post_terms($post_id, $prefecture_ids, 'grant_prefecture');
+        }
+    }
+    
+    // 市町村
+    if (!empty($row_data['対象市町村'])) {
+        $municipalities = explode('、', $row_data['対象市町村']);
+        $municipality_ids = array();
+        
+        foreach ($municipalities as $municipality_name) {
+            $municipality_name = trim($municipality_name);
+            $term = get_term_by('name', $municipality_name, 'grant_municipality');
+            
+            if (!$term) {
+                // 新しいタームを作成
+                $new_term = wp_insert_term($municipality_name, 'grant_municipality');
+                if (!is_wp_error($new_term)) {
+                    $municipality_ids[] = $new_term['term_id'];
+                }
+            } else {
+                $municipality_ids[] = $term->term_id;
+            }
+        }
+        
+        if (!empty($municipality_ids)) {
+            wp_set_post_terms($post_id, $municipality_ids, 'grant_municipality');
         }
     }
     
@@ -1237,6 +1288,9 @@ function gi_generate_ai_summary($post, $field, $api_key) {
     // 対象情報
     $prompt .= "\n【対象情報】\n";
     $prompt .= "対象都道府県: {$meta_data['prefectures']}\n";
+    $prompt .= "対象市町村: {$meta_data['municipalities']}\n";
+    $prompt .= "地域制限: {$meta_data['regional_limitation']}\n";
+    $prompt .= "地域備考: {$meta_data['regional_note']}\n";
     $prompt .= "カテゴリー: {$meta_data['categories']}\n";
     $prompt .= "助成金対象: {$meta_data['grant_target']}\n";
     $prompt .= "対象経費: {$meta_data['target_expenses']}\n";
@@ -1302,6 +1356,9 @@ function gi_get_comprehensive_post_data($post_id) {
         'deadline' => get_post_meta($post_id, 'deadline', true),
         'deadline_note' => get_post_meta($post_id, 'deadline_note', true),
         'application_status' => get_post_meta($post_id, 'application_status', true),
+        'target_municipality' => get_post_meta($post_id, 'target_municipality', true),
+        'regional_limitation' => get_post_meta($post_id, 'regional_limitation', true),
+        'regional_note' => get_post_meta($post_id, 'regional_note', true),
         'grant_target' => get_post_meta($post_id, 'grant_target', true),
         'target_expenses' => get_post_meta($post_id, 'target_expenses', true),
         'difficulty' => get_post_meta($post_id, 'difficulty', true),
@@ -1321,6 +1378,13 @@ function gi_get_comprehensive_post_data($post_id) {
     if ($prefecture_terms && !is_wp_error($prefecture_terms)) {
         $prefecture_names = wp_list_pluck($prefecture_terms, 'name');
         $data['prefectures'] = implode('、', $prefecture_names);
+    }
+    
+    $municipality_terms = get_the_terms($post_id, 'grant_municipality');
+    $data['municipalities'] = '';
+    if ($municipality_terms && !is_wp_error($municipality_terms)) {
+        $municipality_names = wp_list_pluck($municipality_terms, 'name');
+        $data['municipalities'] = implode('、', $municipality_names);
     }
     
     $category_terms = get_the_terms($post_id, 'grant_category');

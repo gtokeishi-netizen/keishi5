@@ -336,6 +336,55 @@ function gi_register_acf_field_groups() {
                 ),
             ),
             
+            // ========== 地域情報 ==========
+            array(
+                'key' => 'field_target_municipality',
+                'label' => '対象市町村',
+                'name' => 'target_municipality',
+                'type' => 'textarea',
+                'instructions' => '助成金の対象となる市町村を入力してください。複数ある場合は改行で区切ってください。',
+                'required' => 0,
+                'rows' => 3,
+                'placeholder' => '例: 東京都新宿区\n東京都渋谷区\n東京都港区',
+                'wrapper' => array(
+                    'width' => '50',
+                ),
+            ),
+            
+            array(
+                'key' => 'field_regional_limitation',
+                'label' => '地域制限',
+                'name' => 'regional_limitation',
+                'type' => 'select',
+                'instructions' => '地域制限のタイプを選択してください。',
+                'required' => 0,
+                'choices' => array(
+                    'nationwide' => '全国対象',
+                    'prefecture_only' => '都道府県内限定',
+                    'municipality_only' => '市町村限定',
+                    'region_group' => '地域グループ限定',
+                    'specific_area' => '特定地域限定',
+                ),
+                'default_value' => 'nationwide',
+                'wrapper' => array(
+                    'width' => '25',
+                ),
+            ),
+            
+            array(
+                'key' => 'field_regional_note',
+                'label' => '地域に関する備考',
+                'name' => 'regional_note',
+                'type' => 'textarea',
+                'instructions' => '地域制限に関する詳細や特記事項があれば入力してください。',
+                'required' => 0,
+                'rows' => 2,
+                'placeholder' => '例: 本社または主要事業所が対象地域内にある事業者に限る',
+                'wrapper' => array(
+                    'width' => '25',
+                ),
+            ),
+            
             // ========== 申請・連絡先 ==========
             array(
                 'key' => 'field_application_method',
