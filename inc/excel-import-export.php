@@ -1210,50 +1210,134 @@ function gi_process_single_post_ai($post_id, $type, $fields, $api_key) {
  * AI要約生成（SEO最適化版）
  */
 function gi_generate_ai_summary($post, $field, $api_key) {
-    $title = $post->post_title;
-    $content = wp_strip_all_tags($post->post_content);
-    $organization = get_post_meta($post->ID, 'organization', true);
-    $max_amount = get_post_meta($post->ID, 'max_amount', true);
-    $prefecture_terms = get_the_terms($post->ID, 'grant_prefecture');
-    $prefecture = '';
-    if ($prefecture_terms && !is_wp_error($prefecture_terms)) {
-        $prefecture = $prefecture_terms[0]->name ?? '';
-    }
+    // 全ての利用可能なメタデータを取得
+    $meta_data = gi_get_comprehensive_post_data($post->ID);
     
-    $prompt = "以下の助成金情報から、SEO最適化された{$field}フィールド用のコンテンツを日本語で生成してください：\n\n";
-    $prompt .= "タイトル: {$title}\n";
-    $prompt .= "実施組織: {$organization}\n";
-    $prompt .= "対象地域: {$prefecture}\n";
-    $prompt .= "最大金額: {$max_amount}万円\n";
-    $prompt .= "詳細内容: " . substr($content, 0, 500) . "\n\n";
+    $prompt = "以下の詳細な助成金情報から、SEO最適化された{$field}フィールド用のコンテンツを日本語で生成してください：\n\n";
+    
+    // 基本情報
+    $prompt .= "【基本情報】\n";
+    $prompt .= "助成金名: {$meta_data['title']}\n";
+    $prompt .= "実施組織: {$meta_data['organization']}\n";
+    $prompt .= "組織タイプ: {$meta_data['organization_type']}\n";
+    
+    // 金額情報
+    $prompt .= "\n【金額情報】\n";
+    $prompt .= "最大金額: {$meta_data['max_amount']}万円\n";
+    $prompt .= "最小金額: {$meta_data['min_amount']}万円\n";
+    $prompt .= "補助率: {$meta_data['subsidy_rate']}%\n";
+    $prompt .= "金額備考: {$meta_data['amount_note']}\n";
+    
+    // 期間情報
+    $prompt .= "\n【期間情報】\n";
+    $prompt .= "申請期限: {$meta_data['application_deadline']}\n";
+    $prompt .= "募集開始日: {$meta_data['recruitment_start']}\n";
+    $prompt .= "締切日: {$meta_data['deadline']}\n";
+    
+    // 対象情報
+    $prompt .= "\n【対象情報】\n";
+    $prompt .= "対象都道府県: {$meta_data['prefectures']}\n";
+    $prompt .= "カテゴリー: {$meta_data['categories']}\n";
+    $prompt .= "助成金対象: {$meta_data['grant_target']}\n";
+    $prompt .= "対象経費: {$meta_data['target_expenses']}\n";
+    $prompt .= "難易度: {$meta_data['difficulty']}\n";
+    $prompt .= "成功率: {$meta_data['success_rate']}%\n";
+    
+    $prompt .= "\n【生成要件】\n";
     
     if ($field === 'summary') {
-        $prompt .= "要件：\n";
-        $prompt .= "- 120-150文字の魅力的な概要\n";
+        $prompt .= "- 120-180文字の魅力的で詳細な概要\n";
         $prompt .= "- 検索されやすいキーワードを含める（地域名、助成金、対象者など）\n";
-        $prompt .= "- 金額や特徴を具体的に記載\n";
-        $prompt .= "- ユーザーの関心を引く表現を使用\n";
+        $prompt .= "- 金額、対象者、申請期限を必ず含める\n";
+        $prompt .= "- ユーザーの関心を引く表現と緊急性を表現\n";
+        $prompt .= "- SEO効果を高める自然なキーワード配置\n";
     } elseif ($field === 'target_requirements') {
-        $prompt .= "要件：\n";
-        $prompt .= "- 対象者・応募要件を明確な箇条書きで記載\n";
+        $prompt .= "- 対象者・応募要件をHTML箇条書き（<ul><li>）で記載\n";
         $prompt .= "- 具体的な条件（従業員数、売上高、地域など）を含める\n";
+        $prompt .= "- 除外条件も明記\n";
         $prompt .= "- 検索キーワード「中小企業」「個人事業主」などを自然に含める\n";
+        $prompt .= "- 重要な要件は<strong>タグで強調\n";
     } elseif ($field === 'application_steps') {
-        $prompt .= "要件：\n";
-        $prompt .= "- 申請手順を分かりやすい番号付きステップで記載\n";
-        $prompt .= "- 具体的な期間や必要時間を含める\n";
+        $prompt .= "- 申請手順をHTML番号付きリスト（<ol><li>）で記載\n";
+        $prompt .= "- 各ステップに具体的な期間や必要時間を含める\n";
+        $prompt .= "- 必要書類や注意点を各ステップに含める\n";
         $prompt .= "- 「申請方法」「手続き」などの検索キーワードを含める\n";
+        $prompt .= "- 重要なポイントは<span class=\"highlight-yellow\">でハイライト\n";
     } elseif ($field === 'content') {
-        $prompt .= "要件：\n";
-        $prompt .= "- 1500文字以上の詳細な本文をHTML形式で生成\n";
-        $prompt .= "- h2, h3見出しで構造化（📋概要、💰助成内容、📝申請方法、⚠️注意事項など）\n";
-        $prompt .= "- 重要部分は<mark>タグで黄色ハイライト\n";
-        $prompt .= "- 表組み（<table>）で情報を整理\n";
-        $prompt .= "- 白背景・黒文字・スタイリッシュなデザイン\n";
+        $prompt .= "- 2000文字以上の詳細な本文をHTML+CSS形式で生成\n";
+        $prompt .= "- 以下のCSS付きHTML構造を使用：\n";
+        $prompt .= "  * CSSスタイル定義を<style>タグで含める\n";
+        $prompt .= "  * 白黒ベース（#000, #333, #666, #ccc, #f9f9f9）+ 黄色ハイライト（#ffeb3b）\n";
+        $prompt .= "  * セクション見出し（h2）: 📋概要、💰助成内容、✅対象者、📅申請手順、📝必要書類、⚠️注意事項、📞連絡先\n";
+        $prompt .= "  * 重要部分は<span class=\"highlight-yellow\">で黄色ハイライト\n";
+        $prompt .= "  * 表組み（<table class=\"grant-table\">）で詳細情報を整理\n";
+        $prompt .= "  * 箇条書き（<ul class=\"grant-list\">）で要件や手順を明記\n";
+        $prompt .= "  * スタイリッシュで読みやすいビジネス文書デザイン\n";
         $prompt .= "- SEO効果を高める関連キーワードを自然に含める\n";
+        $prompt .= "- 実用的で具体的な情報を提供\n";
     }
     
+    $prompt .= "\n生成内容のみを出力してください（説明文は不要）:";
+    
     return gi_call_openai_api($prompt, $api_key);
+}
+
+/**
+ * 投稿の包括的なデータを取得
+ */
+function gi_get_comprehensive_post_data($post_id) {
+    $post = get_post($post_id);
+    $data = array(
+        'title' => $post->post_title,
+        'content' => wp_strip_all_tags($post->post_content),
+        'organization' => get_post_meta($post_id, 'organization', true),
+        'organization_type' => get_post_meta($post_id, 'organization_type', true),
+        'max_amount' => get_post_meta($post_id, 'max_amount', true),
+        'min_amount' => get_post_meta($post_id, 'min_amount', true),
+        'max_amount_yen' => get_post_meta($post_id, 'max_amount_yen', true),
+        'subsidy_rate' => get_post_meta($post_id, 'subsidy_rate', true),
+        'amount_note' => get_post_meta($post_id, 'amount_note', true),
+        'application_deadline' => get_post_meta($post_id, 'application_deadline', true),
+        'recruitment_start' => get_post_meta($post_id, 'recruitment_start', true),
+        'deadline' => get_post_meta($post_id, 'deadline', true),
+        'deadline_note' => get_post_meta($post_id, 'deadline_note', true),
+        'application_status' => get_post_meta($post_id, 'application_status', true),
+        'grant_target' => get_post_meta($post_id, 'grant_target', true),
+        'target_expenses' => get_post_meta($post_id, 'target_expenses', true),
+        'difficulty' => get_post_meta($post_id, 'difficulty', true),
+        'success_rate' => get_post_meta($post_id, 'success_rate', true),
+        'eligibility_criteria' => get_post_meta($post_id, 'eligibility_criteria', true),
+        'application_process' => get_post_meta($post_id, 'application_process', true),
+        'application_method' => get_post_meta($post_id, 'application_method', true),
+        'required_documents' => get_post_meta($post_id, 'required_documents', true),
+        'contact_info' => get_post_meta($post_id, 'contact_info', true),
+        'official_url' => get_post_meta($post_id, 'official_url', true),
+        'summary' => get_post_meta($post_id, 'summary', true)
+    );
+    
+    // タクソノミー情報を取得
+    $prefecture_terms = get_the_terms($post_id, 'grant_prefecture');
+    $data['prefectures'] = '';
+    if ($prefecture_terms && !is_wp_error($prefecture_terms)) {
+        $prefecture_names = wp_list_pluck($prefecture_terms, 'name');
+        $data['prefectures'] = implode('、', $prefecture_names);
+    }
+    
+    $category_terms = get_the_terms($post_id, 'grant_category');
+    $data['categories'] = '';
+    if ($category_terms && !is_wp_error($category_terms)) {
+        $category_names = wp_list_pluck($category_terms, 'name');
+        $data['categories'] = implode('、', $category_names);
+    }
+    
+    $tag_terms = get_the_terms($post_id, 'grant_tag');
+    $data['tags'] = '';
+    if ($tag_terms && !is_wp_error($tag_terms)) {
+        $tag_names = wp_list_pluck($tag_terms, 'name');
+        $data['tags'] = implode('、', $tag_names);
+    }
+    
+    return $data;
 }
 
 /**
@@ -1276,24 +1360,24 @@ function gi_improve_content_with_ai($content, $post, $field, $api_key) {
  */
 function gi_call_openai_api($prompt, $api_key) {
     $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
-        'timeout' => 30,
+        'timeout' => 60, // タイムアウトを60秒に延長
         'headers' => array(
             'Authorization' => 'Bearer ' . $api_key,
             'Content-Type' => 'application/json',
         ),
         'body' => json_encode(array(
-            'model' => 'gpt-3.5-turbo',
+            'model' => 'gpt-3.5-turbo', // より高品質な応答のため
             'messages' => array(
                 array(
                     'role' => 'system',
-                    'content' => 'あなたは助成金情報の専門家です。正確で分かりやすく実用的な日本語コンテンツを生成してください。'
+                    'content' => 'あなたは助成金情報の専門家兼Webデザイナーです。正確で分かりやすく実用的な日本語コンテンツを、HTML/CSSを使用してスタイリッシュに生成してください。白黒ベースのデザインに黄色のハイライト効果を使用し、ビジネス文書として完成度の高い内容を作成してください。'
                 ),
                 array(
                     'role' => 'user',
                     'content' => $prompt
                 )
             ),
-            'max_tokens' => 1000,
+            'max_tokens' => 3000, // より長いコンテンツ生成のために増量
             'temperature' => 0.7
         ))
     ));
@@ -1306,7 +1390,11 @@ function gi_call_openai_api($prompt, $api_key) {
     $data = json_decode($body, true);
     
     if (!isset($data['choices'][0]['message']['content'])) {
-        throw new Exception('AI応答の解析に失敗しました');
+        $error_message = 'AI応答の解析に失敗しました';
+        if (isset($data['error']['message'])) {
+            $error_message .= ': ' . $data['error']['message'];
+        }
+        throw new Exception($error_message);
     }
     
     return trim($data['choices'][0]['message']['content']);

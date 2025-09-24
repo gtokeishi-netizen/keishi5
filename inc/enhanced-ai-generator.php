@@ -140,11 +140,12 @@ class GI_Enhanced_AI_Generator {
     }
     
     /**
-     * Build context prompt from existing data
+     * Build comprehensive context prompt from all available data
      */
     private function build_context_prompt($data) {
         $context_parts = [];
         
+        // 基本情報
         if (!empty($data['title'])) {
             $context_parts[] = "助成金名: {$data['title']}";
         }
@@ -153,12 +154,56 @@ class GI_Enhanced_AI_Generator {
             $context_parts[] = "実施機関: {$data['organization']}";
         }
         
+        if (!empty($data['organization_type'])) {
+            $context_parts[] = "組織タイプ: {$data['organization_type']}";
+        }
+        
+        // 金額情報
         if (!empty($data['max_amount'])) {
-            $context_parts[] = "最大金額: {$data['max_amount']}";
+            $context_parts[] = "最大金額: {$data['max_amount']}万円";
+        }
+        
+        if (!empty($data['min_amount'])) {
+            $context_parts[] = "最小金額: {$data['min_amount']}万円";
+        }
+        
+        if (!empty($data['max_amount_yen'])) {
+            $context_parts[] = "最大助成額: " . number_format($data['max_amount_yen']) . "円";
+        }
+        
+        if (!empty($data['subsidy_rate'])) {
+            $context_parts[] = "補助率: {$data['subsidy_rate']}%";
+        }
+        
+        if (!empty($data['amount_note'])) {
+            $context_parts[] = "金額備考: {$data['amount_note']}";
+        }
+        
+        // 期間情報
+        if (!empty($data['application_deadline'])) {
+            $context_parts[] = "申請期限: {$data['application_deadline']}";
+        }
+        
+        if (!empty($data['recruitment_start'])) {
+            $context_parts[] = "募集開始日: {$data['recruitment_start']}";
         }
         
         if (!empty($data['deadline'])) {
-            $context_parts[] = "締切: {$data['deadline']}";
+            $context_parts[] = "締切日: {$data['deadline']}";
+        }
+        
+        if (!empty($data['deadline_note'])) {
+            $context_parts[] = "締切備考: {$data['deadline_note']}";
+        }
+        
+        if (!empty($data['application_status'])) {
+            $context_parts[] = "申請ステータス: {$data['application_status']}";
+        }
+        
+        // 対象・カテゴリー情報
+        if (!empty($data['prefectures'])) {
+            $prefectures = is_array($data['prefectures']) ? implode('、', $data['prefectures']) : $data['prefectures'];
+            $context_parts[] = "対象都道府県: {$prefectures}";
         }
         
         if (!empty($data['categories'])) {
@@ -166,58 +211,134 @@ class GI_Enhanced_AI_Generator {
             $context_parts[] = "カテゴリー: {$categories}";
         }
         
-        if (!empty($data['prefectures'])) {
-            $prefectures = is_array($data['prefectures']) ? implode('、', $data['prefectures']) : $data['prefectures'];
-            $context_parts[] = "対象地域: {$prefectures}";
+        if (!empty($data['tags'])) {
+            $tags = is_array($data['tags']) ? implode('、', $data['tags']) : $data['tags'];
+            $context_parts[] = "タグ: {$tags}";
+        }
+        
+        if (!empty($data['grant_target'])) {
+            $context_parts[] = "助成金対象: {$data['grant_target']}";
+        }
+        
+        if (!empty($data['target_expenses'])) {
+            $context_parts[] = "対象経費: {$data['target_expenses']}";
+        }
+        
+        // 難易度・成功率
+        if (!empty($data['difficulty'])) {
+            $context_parts[] = "難易度: {$data['difficulty']}";
+        }
+        
+        if (!empty($data['success_rate'])) {
+            $context_parts[] = "成功率: {$data['success_rate']}%";
+        }
+        
+        // 詳細情報
+        if (!empty($data['eligibility_criteria'])) {
+            $criteria_excerpt = mb_substr(strip_tags($data['eligibility_criteria']), 0, 150);
+            $context_parts[] = "対象者・応募要件: {$criteria_excerpt}...";
+        }
+        
+        if (!empty($data['application_process'])) {
+            $process_excerpt = mb_substr(strip_tags($data['application_process']), 0, 150);
+            $context_parts[] = "申請手順: {$process_excerpt}...";
+        }
+        
+        if (!empty($data['application_method'])) {
+            $context_parts[] = "申請方法: {$data['application_method']}";
+        }
+        
+        if (!empty($data['required_documents'])) {
+            $documents_excerpt = mb_substr(strip_tags($data['required_documents']), 0, 100);
+            $context_parts[] = "必要書類: {$documents_excerpt}...";
+        }
+        
+        if (!empty($data['contact_info'])) {
+            $context_parts[] = "連絡先: {$data['contact_info']}";
+        }
+        
+        if (!empty($data['official_url'])) {
+            $context_parts[] = "公式URL: {$data['official_url']}";
+        }
+        
+        if (!empty($data['summary'])) {
+            $summary_excerpt = mb_substr(strip_tags($data['summary']), 0, 200);
+            $context_parts[] = "概要: {$summary_excerpt}...";
         }
         
         if (!empty($data['content'])) {
             $content_excerpt = mb_substr(strip_tags($data['content']), 0, 200);
-            $context_parts[] = "既存内容: {$content_excerpt}...";
+            $context_parts[] = "既存本文: {$content_excerpt}...";
         }
         
         return implode("\n", $context_parts);
     }
     
     /**
-     * Get field-specific generation prompts
+     * Get field-specific generation prompts with enhanced HTML/CSS support
      */
     private function get_field_specific_prompts() {
         return [
             'post_title' => [
                 'instruction' => '魅力的で検索されやすい助成金タイトルを生成してください',
-                'requirements' => '30-60文字、キーワードを含む、具体的で分かりやすい',
-                'examples' => '「令和6年度IT導入支援事業補助金」「中小企業デジタル化促進助成金」'
+                'requirements' => '30-60文字、キーワードを含む、具体的で分かりやすい、緊急性や魅力を表現',
+                'examples' => '「【令和6年度】IT導入支援事業補助金（最大1000万円）」「中小企業デジタル化促進助成金【申請期限間近】」'
             ],
             'post_content' => [
-                'instruction' => '詳細で有用な助成金説明文を生成してください',
-                'requirements' => '500-1500文字、SEO対策済み、見出し構造を含む、申請方法まで網羅',
-                'structure' => '概要→対象者→支給内容→申請方法→注意事項'
+                'instruction' => 'HTMLとCSSを使用したスタイリッシュで詳細な助成金本文を生成してください',
+                'requirements' => '1000-2500文字、HTML構造化、CSS付き、白黒ベースのスタイリッシュなデザイン、黄色蛍光ペン効果使用',
+                'structure' => '概要（アイコン付き）→金額詳細（表組み）→対象者（箇条書き）→申請手順（ステップ表示）→必要書類（チェックリスト）→注意事項（警告ボックス）→連絡先（ボックス表示）',
+                'html_requirements' => 'div, h2, h3, table, ul, ol, span, strong要素を使用。CSS classを含める。',
+                'css_style' => 'モノクロ（#000, #333, #666, #ccc, #f9f9f9）+ 黄色ハイライト（#ffeb3b, #fff59d）を使用',
+                'design_theme' => '白黒ベースのスタイリッシュなビジネス文書風、重要部分に黄色蛍光ペン効果'
             ],
             'post_excerpt' => [
                 'instruction' => '簡潔で魅力的な助成金概要を生成してください',
-                'requirements' => '100-200文字、要点を簡潔に、検索結果で目立つ内容',
-                'focus' => '対象者、金額、メリットを明確に'
+                'requirements' => '120-180文字、要点を簡潔に、検索結果で目立つ内容、金額と対象を明確に',
+                'focus' => '対象者、最大金額、申請期限、メリットを明確に',
+                'tone' => '専門的だが親しみやすく、行動を促す表現'
             ],
             'eligibility_criteria' => [
-                'instruction' => '具体的で分かりやすい対象者・応募要件を生成してください',
-                'requirements' => '箇条書き形式、具体的な条件、除外条件も含む',
-                'style' => '「・」で始まる箇条書き、分かりやすい日本語'
+                'instruction' => '具体的で分かりやすい対象者・応募要件をHTML形式で生成してください',
+                'requirements' => 'HTML箇条書き形式、具体的な条件、除外条件も含む、視覚的に分かりやすい',
+                'html_format' => '<ul>タグと<li>タグを使用、重要な条件は<strong>で強調',
+                'style' => '明確で読みやすい構造、条件の階層化'
             ],
             'application_process' => [
-                'instruction' => 'ステップバイステップの申請手順を生成してください',
-                'requirements' => '番号付きリスト、必要書類、期間、注意点を含む',
-                'format' => '1. 〜、2. 〜の形式'
+                'instruction' => 'ステップバイステップの申請手順をHTML形式で生成してください',
+                'requirements' => 'HTML番号付きリスト、各ステップの詳細、期間、注意点を含む',
+                'html_format' => '<ol>と<li>を使用、各ステップに説明とポイントを追加',
+                'visual_elements' => 'ステップ番号を視覚的に強調、重要な期限や注意点をハイライト'
             ],
             'required_documents' => [
-                'instruction' => '必要書類一覧を生成してください',
-                'requirements' => '具体的な書類名、取得方法、注意点',
-                'format' => '箇条書き、カテゴリー別に整理'
+                'instruction' => '必要書類一覧をHTML形式で生成してください',
+                'requirements' => '具体的な書類名、取得方法、注意点をチェックリスト形式で',
+                'html_format' => '<ul>でチェックリスト風、書類カテゴリーごとに整理',
+                'practical_info' => '取得先や準備時間の目安も含める'
+            ],
+            'summary' => [
+                'instruction' => '助成金の魅力的な概要をHTML形式で生成してください',
+                'requirements' => '200-300文字、HTML構造化、重要ポイントを強調',
+                'html_format' => '<p>と<span>を使用、キーワードを<strong>で強調',
+                'content_focus' => '金額、対象者、メリット、緊急性を含める'
+            ],
+            'amount_details' => [
+                'instruction' => '助成金額の詳細情報をHTML表形式で生成してください',
+                'requirements' => 'HTML table形式、明確で理解しやすい金額体系',
+                'html_format' => '<table>タグで構造化、ヘッダーと明確な項目分け',
+                'content_items' => '最大金額、最小金額、補助率、対象経費を整理'
+            ],
+            'contact_info' => [
+                'instruction' => '連絡先情報を分かりやすいHTML形式で生成してください',
+                'requirements' => 'HTML構造化、電話番号、メール、住所を見やすく配置',
+                'html_format' => '<div>でボックス化、各連絡手段を明確に分離',
+                'practical_focus' => '営業時間や対応可能な問い合わせ内容も含める'
             ],
             'default' => [
-                'instruction' => 'この助成金に関する有用な情報を生成してください',
-                'requirements' => '正確で実用的、SEO対策済み',
-                'tone' => '専門的だが分かりやすい'
+                'instruction' => 'この助成金に関する有用な情報をHTML形式で生成してください',
+                'requirements' => '正確で実用的、SEO対策済み、HTML構造化',
+                'tone' => '専門的だが分かりやすい',
+                'html_format' => '適切なHTML要素を使用して構造化'
             ]
         ];
     }
@@ -241,46 +362,105 @@ class GI_Enhanced_AI_Generator {
     }
     
     /**
-     * Build complete generation prompt
+     * Build complete generation prompt with enhanced HTML/CSS support
      */
     private function build_generation_prompt($context, $field_config, $seo_instructions, $mode) {
-        $prompt = "あなたは助成金・補助金の専門家です。以下の情報を参考に、高品質な内容を生成してください。\n\n";
+        $prompt = "あなたは助成金・補助金の専門家兼Webデザイナーです。以下の情報を参考に、高品質で視覚的に魅力的な内容を生成してください。\n\n";
         
         if (!empty($context)) {
-            $prompt .= "【既存情報】\n{$context}\n\n";
+            $prompt .= "【参考データ】\n{$context}\n\n";
         }
         
         $prompt .= "【生成要件】\n";
         $prompt .= "目的: {$field_config['instruction']}\n";
         $prompt .= "要件: {$field_config['requirements']}\n";
+        
+        // HTML/CSS要件の追加
+        if (isset($field_config['html_requirements'])) {
+            $prompt .= "HTML要件: {$field_config['html_requirements']}\n";
+        }
+        
+        if (isset($field_config['css_style'])) {
+            $prompt .= "CSS基準: {$field_config['css_style']}\n";
+        }
+        
+        if (isset($field_config['design_theme'])) {
+            $prompt .= "デザインテーマ: {$field_config['design_theme']}\n";
+        }
+        
+        if (isset($field_config['html_format'])) {
+            $prompt .= "HTML形式: {$field_config['html_format']}\n";
+        }
+        
         $prompt .= "{$seo_instructions}\n\n";
         
         if (isset($field_config['structure'])) {
-            $prompt .= "構成: {$field_config['structure']}\n";
+            $prompt .= "【コンテンツ構成】\n{$field_config['structure']}\n\n";
         }
         
-        if (isset($field_config['format'])) {
-            $prompt .= "形式: {$field_config['format']}\n";
+        // 本文生成の場合の特別なCSS・HTMLテンプレート指示
+        if (strpos($field_config['instruction'], 'HTMLとCSS') !== false) {
+            $prompt .= $this->get_html_css_template_instructions();
         }
         
         $prompt .= "\n【生成モード】\n";
         switch ($mode) {
             case 'creative':
-                $prompt .= "クリエイティブで魅力的な表現を重視してください。";
+                $prompt .= "クリエイティブで魅力的な表現を重視してください。視覚的インパクトも考慮。";
                 break;
             case 'professional':
-                $prompt .= "専門的で正確な表現を重視してください。";
+                $prompt .= "専門的で正確な表現を重視してください。ビジネス文書として完成度高く。";
                 break;
             case 'seo_focused':
-                $prompt .= "SEO効果を最大化する内容を重視してください。";
+                $prompt .= "SEO効果を最大化する内容を重視してください。検索エンジンに評価される構造で。";
                 break;
             default:
-                $prompt .= "バランス良く実用的な内容を生成してください。";
+                $prompt .= "バランス良く実用的な内容を生成してください。読みやすさと情報の正確性を両立。";
         }
         
-        $prompt .= "\n\n生成内容のみを出力してください（説明文は不要）:";
+        $prompt .= "\n\n【出力形式】\n";
+        $prompt .= "生成内容のみを出力してください（説明文や前置きは不要）。\n";
+        $prompt .= "HTMLタグを使用する場合は、正しく閉じタグまで含めて出力してください。";
         
         return $prompt;
+    }
+    
+    /**
+     * Get HTML/CSS template instructions for content generation
+     */
+    private function get_html_css_template_instructions() {
+        return "
+【HTML/CSSテンプレート指示】
+1. CSSスタイル定義:
+   - 基本色: #000000(黒), #333333(濃いグレー), #666666(グレー), #cccccc(薄いグレー), #f9f9f9(背景)
+   - ハイライト色: #ffeb3b(黄色), #fff59d(薄い黄色) - 重要部分用蛍光ペン効果
+   - フォント: sans-serif系、読みやすさ重視
+   
+2. 必須HTML構造:
+   <div class=\"grant-content\">
+     <h2 class=\"grant-section\">セクションタイトル</h2>
+     <div class=\"grant-highlight\">重要情報ボックス</div>
+     <table class=\"grant-table\">詳細表</table>
+     <ul class=\"grant-list\">リスト項目</ul>
+   </div>
+
+3. CSS クラス定義を含めること:
+   <style>
+   .grant-content { /* メインコンテナ */ }
+   .grant-section { /* セクション見出し */ }
+   .grant-highlight { /* 重要情報ハイライト */ }
+   .grant-table { /* 表組み */ }
+   .grant-list { /* リスト */ }
+   .highlight-yellow { /* 黄色蛍光ペン効果 */ }
+   </style>
+
+4. デザイン要素:
+   - 📋 📊 💰 📅 📞 ✅ などのアイコン使用
+   - 表組みでの情報整理
+   - 重要部分への黄色ハイライト
+   - 白黒ベースのスタイリッシュなレイアウト
+
+";
     }
     
     /**
@@ -435,19 +615,93 @@ class GI_Enhanced_AI_Generator {
     }
     
     /**
-     * Generate content fallback  
+     * Generate enhanced HTML content fallback with CSS styling
      */
     private function generate_content_fallback($data) {
         $title = !empty($data['title']) ? $data['title'] : '助成金制度';
         $org = !empty($data['organization']) ? $data['organization'] : '実施機関';
+        $max_amount = !empty($data['max_amount']) ? $data['max_amount'] . '万円' : '規定額';
+        $deadline = !empty($data['deadline']) ? $data['deadline'] : '随時受付';
+        $categories = !empty($data['categories']) ? (is_array($data['categories']) ? implode('、', $data['categories']) : $data['categories']) : '事業支援';
         
-        return "{$title}は、{$org}が実施する事業者支援制度です。\n\n" .
-               "## 制度概要\n" .
-               "事業の発展と成長を支援するための助成金制度です。\n\n" .
-               "## 対象者\n" .
-               "中小企業、個人事業主等が対象となります。\n\n" .
-               "## 申請方法\n" .
-               "詳細は実施機関の公式サイトをご確認ください。";
+        return '<style>
+.grant-content { font-family: "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; }
+.grant-section { color: #000; border-bottom: 2px solid #000; padding-bottom: 8px; margin: 24px 0 16px 0; font-weight: bold; }
+.grant-highlight { background: #f9f9f9; border-left: 4px solid #000; padding: 16px; margin: 16px 0; }
+.grant-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+.grant-table th, .grant-table td { border: 1px solid #ccc; padding: 12px; text-align: left; }
+.grant-table th { background: #000; color: white; font-weight: bold; }
+.grant-list { margin: 16px 0; padding-left: 24px; }
+.grant-list li { margin: 8px 0; }
+.highlight-yellow { background: #ffeb3b; padding: 2px 4px; font-weight: bold; }
+.contact-box { background: #f9f9f9; border: 1px solid #ccc; padding: 16px; margin: 16px 0; }
+.step-number { background: #000; color: white; border-radius: 50%; padding: 4px 8px; margin-right: 8px; font-weight: bold; }
+</style>
+
+<div class="grant-content">
+    <div class="grant-highlight">
+        <h2>📋 ' . esc_html($title) . '</h2>
+        <p><strong>実施機関:</strong> ' . esc_html($org) . '</p>
+        <p><span class="highlight-yellow">最大助成額: ' . esc_html($max_amount) . '</span></p>
+    </div>
+
+    <h2 class="grant-section">💰 助成金概要</h2>
+    <p>' . esc_html($title) . 'は、' . esc_html($org) . 'が実施する<span class="highlight-yellow">' . esc_html($categories) . '</span>を対象とした事業者支援制度です。事業の発展と成長を支援し、競争力強化を図ることを目的としています。</p>
+
+    <h2 class="grant-section">📊 助成金詳細</h2>
+    <table class="grant-table">
+        <tr>
+            <th>項目</th>
+            <th>内容</th>
+        </tr>
+        <tr>
+            <td>最大助成額</td>
+            <td><span class="highlight-yellow">' . esc_html($max_amount) . '</span></td>
+        </tr>
+        <tr>
+            <td>申請期限</td>
+            <td>' . esc_html($deadline) . '</td>
+        </tr>
+        <tr>
+            <td>対象分野</td>
+            <td>' . esc_html($categories) . '</td>
+        </tr>
+        <tr>
+            <td>実施機関</td>
+            <td>' . esc_html($org) . '</td>
+        </tr>
+    </table>
+
+    <h2 class="grant-section">✅ 対象者・応募要件</h2>
+    <ul class="grant-list">
+        <li>中小企業基本法に定める中小企業・小規模事業者</li>
+        <li>個人事業主（開業届を提出している方）</li>
+        <li>法人設立または開業から1年以上経過している事業者</li>
+        <li>過去に同様の助成金を受給していない事業者</li>
+        <li><span class="highlight-yellow">事業計画書の提出が可能な事業者</span></li>
+    </ul>
+
+    <h2 class="grant-section">📅 申請手順</h2>
+    <ol class="grant-list">
+        <li><span class="step-number">1</span>申請要件の確認と事前準備</li>
+        <li><span class="step-number">2</span>必要書類の準備・収集</li>
+        <li><span class="step-number">3</span>事業計画書の作成</li>
+        <li><span class="step-number">4</span>申請書類の提出</li>
+        <li><span class="step-number">5</span>審査結果の通知待ち</li>
+        <li><span class="step-number">6</span>採択後の手続き・事業実施</li>
+    </ol>
+
+    <h2 class="grant-section">📞 お問い合わせ</h2>
+    <div class="contact-box">
+        <p><strong>実施機関:</strong> ' . esc_html($org) . '</p>
+        <p><strong>受付時間:</strong> 平日 9:00～17:00（土日祝日を除く）</p>
+        <p>詳細な申請方法や最新情報については、実施機関の公式サイトをご確認いただくか、直接お問い合わせください。</p>
+    </div>
+
+    <div class="grant-highlight">
+        <p><strong>⚠️ 重要:</strong> 申請期限や条件は変更される場合があります。必ず最新の公式情報をご確認の上、お申し込みください。</p>
+    </div>
+</div>';
     }
     
     /**
