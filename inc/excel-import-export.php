@@ -24,7 +24,10 @@ if (!defined('ABSPATH')) {
  * 助成金データをExcel形式でエクスポート
  */
 function gi_export_grants_to_excel() {
-    // 権限チェックなし - 誰でも使用可能
+    // 基本的な権限チェック
+    if (!current_user_can('read')) {
+        wp_die('権限がありません');
+    }
 
     // nonceチェック
     if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'gi_export_excel')) {
@@ -657,11 +660,34 @@ function gi_parse_import_date($date_string) {
  * =============================================================================
  */
 
-// エクスポート用AJAX
+// エクスポート用AJAX（ログインユーザー）
 add_action('wp_ajax_gi_export_excel', 'gi_export_grants_to_excel');
+// エクスポート用AJAX（非ログインユーザー - 必要に応じて）
+add_action('wp_ajax_nopriv_gi_export_excel', 'gi_export_grants_to_excel');
+
+// サンプルCSV用AJAX
+add_action('wp_ajax_gi_sample_csv', 'gi_export_sample_csv');
+add_action('wp_ajax_nopriv_gi_sample_csv', 'gi_export_sample_csv');
 
 // インポート用AJAX
 add_action('wp_ajax_gi_import_excel', 'gi_import_grants_from_excel');
+
+/**
+ * 直接リクエスト処理（admin-ajax.php以外からのアクセス）
+ */
+add_action('init', function() {
+    // GETパラメータでactionがセットされている場合の処理
+    if (isset($_GET['action'])) {
+        switch ($_GET['action']) {
+            case 'gi_export_excel':
+                gi_export_grants_to_excel();
+                break;
+            case 'gi_sample_csv':
+                gi_export_sample_csv();
+                break;
+        }
+    }
+});
 
 /**
  * =============================================================================
@@ -1466,5 +1492,83 @@ function gi_call_openai_api($prompt, $api_key) {
 
 // AI処理用AJAX
 add_action('wp_ajax_gi_bulk_ai_process', 'gi_bulk_ai_process');
+
+/**
+ * サンプルCSVをエクスポート
+ */
+function gi_export_sample_csv() {
+    // 権限チェック
+    if (!current_user_can('read')) {
+        wp_die('権限がありません');
+    }
+
+    // nonceチェック
+    if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'gi_sample_csv')) {
+        wp_die('セキュリティチェックに失敗しました');
+    }
+
+    $filename = 'grant-sample-' . date('Y-m-d') . '.csv';
+
+    // HTTPヘッダー設定
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    // CSV出力開始
+    $output = fopen('php://output', 'w');
+
+    // BOM追加（Excel日本語対応）
+    fputs($output, "\xEF\xBB\xBF");
+
+    // ヘッダー行
+    $headers = gi_get_excel_headers();
+    fputcsv($output, $headers);
+
+    // サンプルデータ1
+    $sample1 = array(
+        '', // ID（空欄 - 新規作成時）
+        '環境保護助成金2024',
+        '公開',
+        '環境財団',
+        '財団法人',
+        '500',
+        '100',
+        '5000000',
+        '80',
+        '最大500万円、最小100万円',
+        '2024-12-31',
+        '2024-01-01',
+        '2024-12-31',
+        '必着',
+        '募集中',
+        '全国',
+        '',
+        'なし',
+        '',
+        '環境保護,SDGs',
+        '環境,保護,助成金',
+        '設備投資,研究開発',
+        '設備費,人件費,材料費',
+        '中',
+        '70',
+        'NPO法人、一般社団法人',
+        '申請書提出→審査→結果通知',
+        'オンライン申請',
+        '申請書、事業計画書、収支予算書',
+        '環境財団事務局 03-1234-5678',
+        'https://example.com/environment-grant',
+        '持続可能な環境保護活動を支援する助成金プログラムです。',
+        '<h2>事業概要</h2><p>環境保護に関する革新的な取り組みを支援します。</p><h3>対象事業</h3><ul><li>再生可能エネルギー導入</li><li>廃棄物削減プロジェクト</li><li>生物多様性保全活動</li></ul>',
+        '',
+        '',
+        ''
+    );
+
+    fputcsv($output, $sample1);
+
+    fclose($output);
+    exit;
+}
 
 ?>
