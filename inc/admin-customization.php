@@ -1580,6 +1580,12 @@ function gi_sheets_integration_page() {
                         <button type="button" id="setup-headers" class="button button-secondary">
                             📋 ヘッダー設定
                         </button>
+                        <button type="button" id="debug-test" class="button button-secondary" style="background-color: #ff9800; border-color: #ff9800; color: white;">
+                            🔧 デバッグテスト
+                        </button>
+                        <button type="button" id="simple-test" class="button button-secondary" style="background-color: #4caf50; border-color: #4caf50; color: white;">
+                            ⚡ シンプルテスト
+                        </button>
                     </div>
                 </form>
             </div>
@@ -1810,11 +1816,20 @@ function gi_sheets_integration_page() {
                     action: 'gi_test_sheets_connection'
                 },
                 success: function(response) {
-                    showStatus(response.success ? 'success' : 'error', 
-                              response.data.message);
+                    console.log('Test connection response:', response);
+                    var message = 'レスポンスメッセージが不明です。';
+                    if (response && response.data && response.data.message) {
+                        message = response.data.message;
+                    } else if (response && response.message) {
+                        message = response.message;
+                    } else if (typeof response === 'string') {
+                        message = response;
+                    }
+                    showStatus(response.success ? 'success' : 'error', message);
                 },
-                error: function() {
-                    showStatus('error', '接続テストでエラーが発生しました。');
+                error: function(xhr, status, error) {
+                    console.error('Connection test AJAX error:', xhr, status, error);
+                    showStatus('error', '接続テストでエラーが発生しました: ' + error);
                 },
                 complete: function() {
                     $btn.prop('disabled', false).text('🔍 接続テスト');
@@ -1834,11 +1849,20 @@ function gi_sheets_integration_page() {
                     action: 'gi_setup_sheet_headers'
                 },
                 success: function(response) {
-                    showStatus(response.success ? 'success' : 'error', 
-                              response.data.message);
+                    console.log('Setup headers response:', response);
+                    var message = 'レスポンスメッセージが不明です。';
+                    if (response && response.data && response.data.message) {
+                        message = response.data.message;
+                    } else if (response && response.message) {
+                        message = response.message;
+                    } else if (typeof response === 'string') {
+                        message = response;
+                    }
+                    showStatus(response.success ? 'success' : 'error', message);
                 },
-                error: function() {
-                    showStatus('error', 'ヘッダー設定でエラーが発生しました。');
+                error: function(xhr, status, error) {
+                    console.error('Setup headers AJAX error:', xhr, status, error);
+                    showStatus('error', 'ヘッダー設定でエラーが発生しました: ' + error);
                 },
                 complete: function() {
                     $btn.prop('disabled', false).text('📋 ヘッダー設定');
@@ -1879,20 +1903,30 @@ function gi_sheets_integration_page() {
                     action: action
                 },
                 success: function(response) {
+                    console.log('Sync response:', response);
                     $('.gi-progress-fill').css('width', '100%');
-                    $('#sync-status').text(response.data.message);
                     
-                    showStatus(response.success ? 'success' : 'error', 
-                              response.data.message);
+                    var message = 'レスポンスメッセージが不明です。';
+                    if (response && response.data && response.data.message) {
+                        message = response.data.message;
+                    } else if (response && response.message) {
+                        message = response.message;
+                    } else if (typeof response === 'string') {
+                        message = response;
+                    }
+                    
+                    $('#sync-status').text(message);
+                    showStatus(response.success ? 'success' : 'error', message);
                               
                     if (response.success) {
                         // 同期時刻を更新
                         $('#last-sync-time').text(new Date().toLocaleString('ja-JP'));
                     }
                 },
-                error: function() {
-                    showStatus('error', '同期中にエラーが発生しました。');
-                    $('#sync-status').text('同期エラー');
+                error: function(xhr, status, error) {
+                    console.error('Sync AJAX error:', xhr, status, error);
+                    showStatus('error', '同期中にエラーが発生しました: ' + error);
+                    $('#sync-status').text('同期エラー: ' + error);
                 },
                 complete: function() {
                     setTimeout(function() {
@@ -1965,6 +1999,60 @@ function gi_sheets_integration_page() {
             setInterval(updateLogs, 30000); // 30秒ごと
         }
         
+        // デバッグテスト
+        $('#debug-test').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('🔧 テスト中...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gi_debug_test'
+                },
+                success: function(response) {
+                    console.log('Debug test response:', response);
+                    alert('デバッグテスト結果:\\n' + JSON.stringify(response, null, 2));
+                },
+                error: function(xhr, status, error) {
+                    console.error('Debug test AJAX error:', xhr, status, error);
+                    alert('デバッグテストでエラーが発生しました: ' + error);
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('🔧 デバッグテスト');
+                }
+            });
+        });
+        
+        // シンプルテスト
+        $('#simple-test').on('click', function() {
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('⚡ テスト中...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gi_simple_test'
+                },
+                success: function(response) {
+                    console.log('Simple test response:', response);
+                    if (response.success) {
+                        alert('シンプルテスト成功!\\nメッセージ: ' + response.data.message);
+                    } else {
+                        alert('シンプルテスト失敗: ' + (response.data || 'Unknown error'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Simple test AJAX error:', xhr, status, error);
+                    alert('シンプルテストでエラーが発生しました: ' + error);
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('⚡ シンプルテスト');
+                }
+            });
+        });
+        
         // ステータス表示関数
         function showStatus(type, message) {
             var $status = $('#sheets-status');
@@ -2004,5 +2092,27 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
             echo '<!-- 現在のユーザーID: ' . get_current_user_id() . ' -->';
             echo '<!-- 権限バイパス: アクティブ -->';
         }
+    });
+}
+
+/**
+ * =============================================================================
+ * 12. Google Sheets連携用 シンプル AJAX テストハンドラー
+ * =============================================================================
+ */
+
+// シンプルなAJAXテストハンドラー（バックアップ）
+add_action('wp_ajax_gi_simple_test', function() {
+    wp_send_json_success(array(
+        'message' => 'AJAX処理は正常に動作しています。',
+        'time' => current_time('mysql'),
+        'user' => wp_get_current_user()->display_name
+    ));
+});
+
+// Google Sheetsテスト用のフォールバックハンドラー
+if (!has_action('wp_ajax_gi_test_sheets_connection')) {
+    add_action('wp_ajax_gi_test_sheets_connection', function() {
+        wp_send_json_error('Google Sheets Integration クラスが読み込まれていません。functions.phpでの読み込みを確認してください。');
     });
 }

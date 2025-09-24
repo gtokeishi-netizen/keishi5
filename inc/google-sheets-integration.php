@@ -40,6 +40,7 @@ class GI_Google_Sheets_Integration {
         add_action('wp_ajax_gi_setup_sheet_headers', array($this, 'setup_sheet_headers'));
         add_action('wp_ajax_gi_get_sync_logs', array($this, 'get_sync_logs'));
         add_action('wp_ajax_gi_clear_sync_logs', array($this, 'clear_sync_logs'));
+        add_action('wp_ajax_gi_debug_test', array($this, 'debug_test'));
         
         // 定期同期用のフック
         add_action('gi_sheets_sync_cron', array($this, 'cron_sync_from_sheets'));
@@ -752,6 +753,22 @@ class GI_Google_Sheets_Integration {
         } catch (Exception $e) {
             wp_send_json_error('ログクリアエラー: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * デバッグテスト用AJAX
+     */
+    public function debug_test() {
+        // 最も基本的なテスト
+        wp_send_json_success(array(
+            'message' => 'Google Sheets Integration クラスは正常に動作しています。',
+            'timestamp' => current_time('mysql'),
+            'settings' => array(
+                'has_service_key' => !empty($this->service_account_key),
+                'has_spreadsheet_id' => !empty($this->spreadsheet_id),
+                'sheet_name' => $this->sheet_name
+            )
+        ));
     }
     
     /**
